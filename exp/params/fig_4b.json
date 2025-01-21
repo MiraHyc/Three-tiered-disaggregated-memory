@@ -2,7 +2,7 @@
     "methods": "ART",
     "workload_names": ["YCSB A", "a"],
     "target_epoch": 9,
-    "client_num": [8, 32],
+    "client_num": [2, 32],
     "MN_num": 1,
     "key_size": "email",
     "value_size": 64,

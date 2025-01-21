@@ -2,10 +2,10 @@
     "methods": ["Baseline", "+Homogeneous Adaptive Internal Node", "+ART-indexed Cache"],
     "workload_names": ["YCSB C", "c"],
     "target_epoch": 10,
-    "client_num": [16, 24],
-    "MN_num": 2,
+    "client_num": [2, 24],
+    "MN_num": 1,
     "key_size": "email",
     "value_size": 8,
-    "cache_size": [150, 200, 250, 300],
+    "cache_size": [150,200,250,300],
     "span_size": null
 }

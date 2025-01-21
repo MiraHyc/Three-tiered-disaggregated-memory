@@ -29,14 +29,14 @@ public:
   ~GlobalAllocator() { delete[] bitmap; }
 
   GlobalAddress alloc_chunck() {
-
     GlobalAddress res = start;
     if (bitmap_tail >= bitmap_len) {
-      Debug::notifyError("shared memory space run out");
-      // assert(false);
-      bitmap_tail = 1;
-      memset(bitmap, 0, bitmap_len);
-      bitmap[0] = true;
+      //Debug::notifyError("shared memory space run out");
+      //assert(false);
+       bitmap_tail = 1;
+       memset(bitmap, 0, bitmap_len);
+       bitmap[0] = true;
+       res.nodeID= 2;
     }
 
     if (bitmap[bitmap_tail] == false) {

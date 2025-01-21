@@ -2,10 +2,10 @@
     "methods": ["SMART", "ART", "Sherman"],
     "workload_names": ["YCSB A", "a"],
     "target_epoch": 9,
-    "client_num": [[16, 8], [16, 16], [16, 24], [16, 32], [16, 40], [16, 48], [16, 56]],
-    "MN_num": 2,
+    "client_num": [[2, 4], [2, 8], [2,12],[2, 16], [2, 20], [2, 24], [2, 32], [2, 40]],
+    "MN_num": 1,
     "key_size": "randint",
     "value_size": 8,
-    "cache_size": 600,
+    "cache_size": 200,
     "span_size": 32
 }

@@ -13,7 +13,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++17")
 set(LINKS_FLAGS "-lcityhash -lboost_system -lboost_coroutine -lpthread -libverbs -lmemcached -ltbb")
 
 #Env Options
-option (STATIC_MN_IP "Use static MNs according the IPs of the nodes" OFF)
+option (STATIC_MN_IP "Use static MNs according the IPs of the nodes" ON)
 option (ENABLE_CORO "Turn on the coroutine" ON)
 option (ENABLE_CACHE "Turn on the computing-side cache" ON)
 option (LONG_TEST_EPOCH "Use big epoch num and long epoch duration" OFF)

@@ -84,7 +84,6 @@ InternalEntry Tree::get_root_ptr(CoroContext *cxt, int coro_id) {
 
 void Tree::insert(const Key &k, Value v, CoroContext *cxt, int coro_id, bool is_update, bool is_load) {
   assert(dsm->is_register());
-
   // handover
   bool write_handover = false;
   std::pair<bool, bool> lock_res = std::make_pair(false, false);
@@ -112,7 +111,8 @@ void Tree::insert(const Key &k, Value v, CoroContext *cxt, int coro_id, bool is_
   int max_num;
   uint64_t* cas_buffer;
   int debug_cnt = 0;
-
+  // struct timespec start_time, end_time;
+  // clock_gettime(CLOCK_MONOTONIC, &start_time);
 #ifdef TREE_ENABLE_WRITE_COMBINING
   lock_res = local_lock_table->acquire_local_write_lock(k, v, &busy_waiting_queue, cxt, coro_id);
   write_handover = (lock_res.first && !lock_res.second);
@@ -387,6 +387,11 @@ next:
 #endif
 
 insert_finish:
+// clock_gettime(CLOCK_MONOTONIC, &end_time);
+// double insert_time = (end_time.tv_sec - start_time.tv_sec) * 1e9 + (end_time.tv_nsec - start_time.tv_nsec);
+// insert_time /= 1e9;  // 转换为秒
+// std::cout << "Insert took " << insert_time << " seconds." << std::endl;
+
 #ifdef TREE_TEST_ROWEX_ART
   if (!is_update) unlock_node(node_ptr, cxt, coro_id);
 #endif
@@ -406,8 +411,11 @@ insert_finish:
 
 bool Tree::read_leaf(const GlobalAddress &leaf_addr, char *leaf_buffer, int leaf_size, const GlobalAddress &p_ptr, bool from_cache, CoroContext *cxt, int coro_id) {
   try_read_leaf[dsm->getMyThreadID()] ++;
+  // struct timespec start_time, end_time;
+  // clock_gettime(CLOCK_MONOTONIC, &start_time);
 re_read:
   dsm->read_sync(leaf_buffer, leaf_addr, leaf_size, cxt);
+  
   auto leaf = (Leaf *)leaf_buffer;
   // udpate reverse pointer if needed
   if (!from_cache && leaf->rev_ptr != p_ptr) {
@@ -416,6 +424,10 @@ re_read:
     // dsm->cas_sync(leaf_addr, leaf->rev_ptr, p_ptr, cas_buffer, cxt);
   }
   // invalidation
+  // clock_gettime(CLOCK_MONOTONIC, &end_time);
+  // double read_leaf_time = (end_time.tv_sec - start_time.tv_sec) * 1e9 + (end_time.tv_nsec - start_time.tv_nsec);
+  // read_leaf_time /= 1e9;  // 转换为秒
+  // std::cout << "Read leaf took " << read_leaf_time << " seconds." << std::endl;
   if (!leaf->is_valid(p_ptr, from_cache)) {
     leaf_cache_invalid[dsm->getMyThreadID()] ++;
     return false;
@@ -906,7 +918,8 @@ bool Tree::insert_behind(const Key &k, Value &v, int depth, GlobalAddress& leaf_
 
 bool Tree::search(const Key &k, Value &v, CoroContext *cxt, int coro_id) {
   assert(dsm->is_register());
-
+  struct timespec start_time, end_time;
+  clock_gettime(CLOCK_MONOTONIC, &start_time);
   // handover
   bool search_res = false;
   std::pair<bool, bool> lock_res = std::make_pair(false, false);
@@ -931,7 +944,8 @@ bool Tree::search(const Key &k, Value &v, CoroContext *cxt, int coro_id) {
   InternalPage* p_node = nullptr;
   Header hdr;
   int max_num;
-
+  
+ //检查是否发生读委托
 #ifdef TREE_ENABLE_READ_DELEGATION
   lock_res = local_lock_table->acquire_local_read_lock(k, &busy_waiting_queue, cxt, coro_id);
   read_handover = (lock_res.first && !lock_res.second);
@@ -950,6 +964,7 @@ bool Tree::search(const Key &k, Value &v, CoroContext *cxt, int coro_id) {
     p_ptr = GADD(entry_ptr->addr, sizeof(InternalEntry) * entry_idx);
     p = entry_ptr->records[entry_idx];
     depth = entry_ptr->depth;
+    printf("Cache hit for key %lld at depth %d\n", k, depth);
   }
   else {
     p_ptr = root_ptr_ptr;
@@ -1067,8 +1082,12 @@ next:
       goto next;  // search next level
     }
   }
+  search_finish:
+  // clock_gettime(CLOCK_MONOTONIC, &end_time);
+  // double search_time = (end_time.tv_sec - start_time.tv_sec) * 1e9 + (end_time.tv_nsec - start_time.tv_nsec);
+  // search_time /= 1e9;  // 转换为秒
+  // std::cout << "Search took " << search_time << " seconds." << std::endl;
 
-search_finish:
 #ifdef TREE_ENABLE_CACHE
   if (!read_handover) {
     auto hit = (cache_depth == 1 ? 0 : (double)cache_depth / depth);
@@ -1224,7 +1243,8 @@ void Tree::range_query(const Key &from, const Key &to, std::map<Key, Value> &ret
 
   auto range_buffer = (dsm->get_rbuf(0)).get_range_buffer();
   int cnt;
-
+  //struct timespec start_time, end_time;
+  // clock_gettime(CLOCK_MONOTONIC, &start_time);
   // search local cache
 #ifdef TREE_ENABLE_CACHE
   index_cache->search_range_from_cache(from, to, range_cache);

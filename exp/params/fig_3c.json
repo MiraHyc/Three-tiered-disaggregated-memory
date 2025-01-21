@@ -2,10 +2,10 @@
     "methods": ["ART", "Sherman"],
     "workload_names": ["YCSB C", "c"],
     "target_epoch": 9,
-    "client_num": [8, 32],
+    "client_num": [2, 32],
     "MN_num": 1,
     "key_size": "email",
     "value_size": 64,
-    "cache_size": [0, 100, 200, 300, 400, 500, 600],
+    "cache_size": [0,100,200,300,400,500,600,700,800,900,1000],
     "span_size": 32
 }

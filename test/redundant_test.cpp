@@ -131,7 +131,7 @@ std::atomic_bool ready{false};
 
 void thread_run(int id) {
 
-  bindCore(id * 2 + 1);
+  bindCore(16 + id);
   dsm->registerThread();
   uint64_t my_id = kThreadCount * dsm->getMyNodeID() + id;
   printf("I am %lu\n", my_id);
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
   config.threadNR = kThreadCount;
   dsm = DSM::getInstance(config);
   dsm->registerThread();
-  bindCore(kThreadCount * 2 + 1);
+  bindCore(16 + kThreadCount );
 
   dsm->barrier("benchmark");
 

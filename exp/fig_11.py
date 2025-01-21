@@ -64,7 +64,7 @@ def main(cmd: CMDManager, tp: LogParser):
             for CN_num, client_num_per_CN in CN_and_client_nums[method][workload]:
                 CLEAR_MEMC = f"{env_cmd} && /bin/bash ../script/restartMemc.sh"
                 SPLIT_WORKLOADS = f"{env_cmd} && python3 {ycsb_dir}/split_workload.py {workload_name} {key_type} {CN_num} {client_num_per_CN}"
-                YCSB_TEST = f"{env_cmd} && ./ycsb_test {CN_num} {client_num_per_CN} 2 {key_type} {workload_name}"
+                YCSB_TEST = f"{env_cmd} && ./ycsb_test {CN_num} {client_num_per_CN} 1 {key_type} {workload_name}"
                 KILL_PROCESS = f"{env_cmd} && killall -9 ycsb_test"
 
                 cmd.all_execute(SPLIT_WORKLOADS, CN_num)

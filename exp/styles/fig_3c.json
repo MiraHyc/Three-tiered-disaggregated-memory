@@ -1,10 +1,11 @@
 {
-    "y_label": "Throughput (Mops/s)",
-    "x_label": "Cache Size (MB)",
-
-    "y_lim": [0, 55],
-    "x_tick": [0, 200, 400, 600],
-    "legend_anchor": [0.5, 0.5],
-
-    "figsize": [5, 4]
+    "methods": ["ART", "Sherman"],
+    "workload_names": ["YCSB C", "c"],
+    "target_epoch": 9,
+    "client_num": [2, 64],
+    "MN_num": 1,
+    "key_size": "email",
+    "value_size": 64,
+    "cache_size": [0, 100, 200, 300, 400, 500, 600],
+    "span_size": 32
 }

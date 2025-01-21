@@ -11,6 +11,7 @@
 #include "LocalAllocator.h"
 #include "RdmaBuffer.h"
 #include "Common.h"
+#include "GlobalAllocator.h"
 
 
 class DSMKeeper;
@@ -29,6 +30,7 @@ public:
   uint16_t getMyThreadID() { return thread_id; }
   uint16_t getClusterSize() { return conf.machineNR; }
   uint64_t getThreadTag() { return thread_tag; }
+  
 
   // RDMA operations
   // buffer is registered memory
@@ -174,6 +176,7 @@ private:
 
   void initRDMAConnection();
   void fill_keys_dest(RdmaOpRegion &ror, GlobalAddress addr, bool is_chip);
+ 
 
   DSMConfig conf;
   std::atomic_int appID;
@@ -185,10 +188,14 @@ private:
   static thread_local char *rdma_buffer;
   static thread_local LocalAllocator local_allocators[MEMORY_NODE_NUM][NR_DIRECTORY];
   static thread_local RdmaBuffer rbuf[MAX_CORO_NUM];
-
+  
+  
   uint64_t baseAddr;
+  uint32_t cxlAddr;
   uint32_t myNodeID;
   uint64_t keySpaceSize;
+  GlobalAddress cxl_address;
+  GlobalAllocator* cxl_chunckAlloc; 
 
   RemoteConnection *remoteInfo;
   ThreadConnection *thCon[MAX_APP_THREAD];
@@ -239,22 +246,57 @@ inline GlobalAddress DSM::alloc(size_t size, bool align) {
   }
 
   auto& local_allocator = local_allocators[cur_target_node][cur_target_dir_id];
+  
 
   // alloc from the target node
   bool need_chunk = true;
   GlobalAddress addr = local_allocator.malloc(size, need_chunk, align);
+ // std::cout << "local allocation successful. Address: " << addr << std::endl;
+  
+//   if(need_chunk)  {
+//   cxl_address = cxl_chunckAlloc ->alloc_chunck(); 
+//   local_allocator.set_chunck(cxl_address);
+//   addr = local_allocator.malloc(size, need_chunk, align);
+//   //std::cout << "cxl allocation successful. Address: " << addr << std::endl;
+//   //std::cout << "myNodeID: " << myNodeID<< std::endl;
+//   }
+  
+  
+ 
   if (need_chunk)  {
     RawMessage m;
     m.type = RpcType::MALLOC;
-
     this->rpc_call_dir(m, cur_target_node, cur_target_dir_id);
     local_allocator.set_chunck(rpc_wait()->addr);
-
+    //std::cout << "myNodeID: " << myNodeID<< std::endl;
     // retry
     addr = local_allocator.malloc(size, need_chunk, align);
+    //std::cout << "remote allocation successful. Address: " << addr << std::endl;
   }
   return addr;
 }
+
+//  if (need_chunk) {
+//             cxl_address = cxl_chunckAlloc->alloc_chunck(); 
+//             // 检查 alloc_chunck 返回的有效性以及标志位
+//             if (cxl_address.nodeID == 2) {
+//                 //Debug::notifyError("Local chunk allocation failed: shared memory space run out.");
+//                 // 立即尝试远程分配
+//                 RawMessage m;
+//                 m.type = RpcType::MALLOC;
+//                 this->rpc_call_dir(m, cur_target_node, cur_target_dir_id);
+//                 local_allocator.set_chunck(rpc_wait()->addr);
+//                 addr = local_allocator.malloc(size, need_chunk, align);
+//             } else {
+//                 local_allocator.set_chunck(cxl_address);
+//                 addr = local_allocator.malloc(size, need_chunk, align);
+//                 return addr;
+//             }
+//             return addr;
+//             }
+//             return addr;
+//             }
+
 
 inline void DSM::alloc_nodes(int node_num, GlobalAddress *addrs, bool align) {
   for (int i = 0; i < node_num; ++ i) {

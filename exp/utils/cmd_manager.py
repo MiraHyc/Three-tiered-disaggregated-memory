@@ -83,7 +83,9 @@ class CMDManager(object):
         print_OK(f'EXECUTE_IP={cli_ip}')
         try:
             _, stdout, stderr = cli.exec_command(command, get_pty=True)
+            #print_OK("This is a success message 1.")
             out = stdout.readlines()  # block here
+            #print_OK("This is a success message 2.")
             err = stderr.readlines()
             for line in out:
                 print(f'[CN {cli_ip} OUTPUT] {line.strip()}')

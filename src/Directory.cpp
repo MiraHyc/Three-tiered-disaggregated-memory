@@ -28,8 +28,9 @@ Directory::Directory(DirectoryConnection *dCon, RemoteConnection *remoteInfo,
 Directory::~Directory() { delete chunckAlloc; }
 
 void Directory::dirThread() {
-
-  bindCore((CPU_PHYSICAL_CORE_NUM - 1 - dirID) * 2 + 1);  // bind to the last CPU core
+  int last_core_id = CPU_PHYSICAL_CORE_NUM - 1 -dirID;
+  bindCore(last_core_id);  // bind to the last CPU core
+  printf("Binding dirThread to core ID: %d\n", last_core_id);
   Debug::notifyInfo("dir %d launch!\n", dirID);
 
   while (true) {

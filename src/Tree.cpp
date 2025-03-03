@@ -964,7 +964,7 @@ bool Tree::search(const Key &k, Value &v, CoroContext *cxt, int coro_id) {
     p_ptr = GADD(entry_ptr->addr, sizeof(InternalEntry) * entry_idx);
     p = entry_ptr->records[entry_idx];
     depth = entry_ptr->depth;
-    printf("Cache hit for key %lld at depth %d\n", k, depth);
+    //printf("Cache hit for key %lld at depth %d\n", k, depth);
   }
   else {
     p_ptr = root_ptr_ptr;

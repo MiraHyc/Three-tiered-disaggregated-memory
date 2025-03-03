@@ -8,14 +8,14 @@
 
 #include <algorithm>
 #include <fstream>
-#include <chrono>
+
 thread_local int DSM::thread_id = -1;
 thread_local ThreadConnection *DSM::iCon = nullptr;
 thread_local char *DSM::rdma_buffer = nullptr;
 thread_local LocalAllocator DSM::local_allocators[MEMORY_NODE_NUM][NR_DIRECTORY];
 thread_local RdmaBuffer DSM::rbuf[MAX_CORO_NUM];
 thread_local uint64_t DSM::thread_tag = 0;
-GlobalAddress cxl_address;
+
 
 DSM *DSM::getInstance(const DSMConfig &conf) {
   static DSM *dsm = nullptr;
@@ -32,21 +32,17 @@ DSM *DSM::getInstance(const DSMConfig &conf) {
 }
 
 DSM::DSM(const DSMConfig &conf)
-    : conf(conf), appID(0), cache(conf.cacheConfig), cxl_address{},cxl_chunckAlloc(nullptr) {
+    : conf(conf), appID(0), cache(conf.cacheConfig) {
 
-
-  
-    baseAddr = (uint64_t)hugePageAlloc(conf.dsmSize * define::GB);
-    //cxlAddr  = (uint64_t)hugePageAlloc(conf.cxlSize * define::GB);
+  baseAddr = (uint64_t)hugePageAlloc(conf.dsmSize * define::GB);
 
   Debug::notifyInfo("shared memory size: %dGB, 0x%lx", conf.dsmSize, baseAddr);
   Debug::notifyInfo("rdma cache size: %dGB", conf.cacheConfig.cacheSize);
-  //Debug::notifyInfo("cxl memory size: %dGB, 0x%lx", conf.cxlSize, cxlAddr);
+
   // warmup
   memset((char *)baseAddr, 0, conf.dsmSize * define::GB);
   memset((char *)cache.data, 0, cache.size * define::GB);
-  //memset((char *)cxlAddr, 0, conf.cxlSize* define::GB);
-    
+
   initRDMAConnection();
   if (myNodeID < MEMORY_NODE_NUM) {  // start memory server
     for (int i = 0; i < NR_DIRECTORY; ++i) {
@@ -55,19 +51,10 @@ DSM::DSM(const DSMConfig &conf)
     }
     Debug::notifyInfo("Memory server %d start up", myNodeID);
   }
-    // cxl_address.nodeID=myNodeID;
-    // cxl_address.offset= 0; 
-    // uint64_t cxlSize;
-    // cxlSize = define::cxlSize;
-    // cxl_chunckAlloc = new GlobalAllocator(cxl_address, cxlSize);
-    keeper->barrier("DSM-init");
+  keeper->barrier("DSM-init");
 }
 
-DSM::~DSM() { hugePageFree((void *)baseAddr, conf.dsmSize * define::GB);
-             // hugePageFree((void *)cxlAddr , conf.cxlSize * define::GB); 
-              delete cxl_chunckAlloc; // 释放 GlobalAllocator 实例
-              cxl_chunckAlloc = nullptr; 
-      }
+DSM::~DSM() { hugePageFree((void *)baseAddr, conf.dsmSize * define::GB); }
 
 void DSM::registerThread() {
 
@@ -160,28 +147,14 @@ void DSM::read(char *buffer, GlobalAddress gaddr, size_t size, bool signal,
 
 void DSM::read_sync(char *buffer, GlobalAddress gaddr, size_t size,
                     CoroContext *ctx) {
-
-  bool is_local = (gaddr.nodeID == myNodeID); 
-  void *basePtr = reinterpret_cast<void*>(baseAddr);
-  char *baseCharPtr = static_cast<char*>(basePtr);
-  char *local_source = baseCharPtr + gaddr.offset;
-    // auto start_time = std::chrono::high_resolution_clock::now(); // 记录开始时间
-  if (is_local) {
-    memcpy(buffer, local_source, size);
-    // auto end_time = std::chrono::high_resolution_clock::now();
-    // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count();
-    // Debug::notifyInfo("Local read took %lu nanoseconds\n", duration);
-  } else {
   read(buffer, gaddr, size, true, ctx);
+
   if (ctx == nullptr) {
     ibv_wc wc;
     pollWithCQ(iCon->cq, 1, &wc);
-    //  auto end_time = std::chrono::high_resolution_clock::now();
-    //  auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count();
-    // Debug::notifyInfo("Remote read took %lu nanoseconds\n", duration);
   }
 }
-}
+
 void DSM::write(const char *buffer, GlobalAddress gaddr, size_t size,
                 bool signal, CoroContext *ctx) {
 

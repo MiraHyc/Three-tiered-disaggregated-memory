@@ -151,7 +151,6 @@ void Tree::insert(const Key &k, Value v, CoroContext *cxt, int coro_id, bool is_
   if (!is_update) lock_node(node_ptr, cxt, coro_id);
 #else
   UNUSED(is_update);  // is_update is only used in ROWEX_ART baseline
-  ;;;
 #endif
 
 next:

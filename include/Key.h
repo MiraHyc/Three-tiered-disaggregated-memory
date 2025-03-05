@@ -3,19 +3,25 @@
 
 #include "Common.h"
 
+// in Common.h
+// using Key = std::array<uint8_t, define::keyLen> = std::array<unsigned char, 8>
+// 即 Key 是一个长度为 8 的数组，元素类型是 uint8_t (一字节,取值为 0 ~ 255), 共 8 字节
+// Key 采用大端序，即高位在前，低位在后
 
+// 获取第 depth 层的分段值（索引从1开始）
 inline uint8_t get_partial(const Key& key, int depth) {
   return depth == 0 ? 0 : key.at(depth - 1);
 }
 
 
+// 生成给定深度 depth 的左边界键 Key. 例如 key 是 253.106.29.13.7..., depth 为 3, 那么 get_leftmost = 253.106.29.0.0.0.0.0
 inline Key get_leftmost(const Key& key, int depth) {
   Key res{};
   std::copy(key.begin(), key.begin() + depth, res.begin());
   return res;
 }
 
-
+// 生成给定深度 depth 的右边界键 Key. 例如 key 是 253.106.29.13.7..., depth 为 3, 那么 get_rightmost = 253.106.29.255.255.255.255.255
 inline Key get_rightmost(const Key& key, int depth) {
   Key res{};
   std::copy(key.begin(), key.begin() + depth, res.begin());
@@ -50,6 +56,7 @@ inline Key remake_prefix(const Key& key, int depth, uint8_t diff_partial) {
 }
 
 
+// 计算两个键从指定深度开始的最长公共前缀长度, 返回首个不匹配的下标
 inline int longest_common_prefix(const Key &k1, const Key &k2, int depth) {
   assert((uint32_t)depth <= define::keyLen);
 
@@ -62,6 +69,7 @@ inline int longest_common_prefix(const Key &k1, const Key &k2, int depth) {
   return idx;
 }
 
+// 实现Key的递增（类似大数加1)，从后往前处理进位.
 inline void add_one(Key& a) {
   for (int i = 0; i < (int)define::keyLen; ++ i) {
     auto& partial = a.at(define::keyLen - 1 - i);
@@ -75,6 +83,7 @@ inline void add_one(Key& a) {
   }
 }
 
+// 实现键的加运算（跨字节进位）
 inline Key operator+(const Key& a, uint8_t b) {
   Key res = a;
   for (int i = 0; i < (int)define::keyLen; ++ i) {
@@ -92,6 +101,7 @@ inline Key operator+(const Key& a, uint8_t b) {
   return res;
 }
 
+// 实现键的减运算（跨字节借位）
 inline Key operator-(const Key& a, uint8_t b) {
   Key res = a;
   for (int i = 0; i < (int)define::keyLen; ++ i) {
@@ -110,6 +120,7 @@ inline Key operator-(const Key& a, uint8_t b) {
   return res;
 }
 
+// 将64位整数转换回Key（自动补零）
 inline Key int2key(uint64_t key) {
 #ifdef KEY_SPACE_LIMIT
   key = key % (kKeyMax - kKeyMin) + kKeyMin;
@@ -122,6 +133,7 @@ inline Key int2key(uint64_t key) {
   return res;
 }
 
+// string 转换成 Key
 inline Key str2key(const std::string &key) {
   // assert(key.size() <= define::keyLen);
   Key res{};
@@ -129,6 +141,7 @@ inline Key str2key(const std::string &key) {
   return res;
 }
 
+// Key 转成 64位整数
 inline uint64_t key2int(const Key& key) {
   uint64_t res = 0;
   for (auto a : key) res = (res << 8) + a;

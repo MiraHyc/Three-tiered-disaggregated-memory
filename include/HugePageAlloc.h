@@ -32,7 +32,7 @@ inline void *hugePageAlloc(size_t size) {
     // 设置内存绑定策略
     if(set_mempolicy(MPOL_BIND, node_mask->maskp, node_mask->size + 1) == -1){
         Debug::notifyError("set_mempolicy failed: %s\n", strerror(errno));
-        numa_free_nodemask(nm);
+        numa_free_nodemask(node_mask);
         return MAP_FAILED;
     }
 

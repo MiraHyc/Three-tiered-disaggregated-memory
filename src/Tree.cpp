@@ -37,6 +37,7 @@ thread_local CoroQueue Tree::busy_waiting_queue;
 
 
 Tree::Tree(DSM *dsm, uint16_t tree_id) : dsm(dsm), tree_id(tree_id) {
+  // 确保 DSM 已经注册
   assert(dsm->is_register());
 
 #ifdef TREE_ENABLE_CACHE
@@ -48,18 +49,29 @@ Tree::Tree(DSM *dsm, uint16_t tree_id) : dsm(dsm), tree_id(tree_id) {
 // #endif
 #endif
 
+  // 初始化本地锁表
   local_lock_table = new LocalLockTable();
 
+  // 获取存储根节点指针的全局地址（GlobalAddress）。
   root_ptr_ptr = get_root_ptr_ptr();
 
   // init root entry to Null
-  auto entry_buffer = (dsm->get_rbuf(0)).get_entry_buffer();
-  dsm->read_sync((char *)entry_buffer, root_ptr_ptr, sizeof(InternalEntry));
-  auto root_ptr = *(InternalEntry *)entry_buffer;
+  // 初始化根节点
+  auto entry_buffer = (dsm->get_rbuf(0)).get_entry_buffer(); // 获取一个用于存储 InternalEntry 结果的缓冲区。
+  dsm->read_sync((char *)entry_buffer, root_ptr_ptr, sizeof(InternalEntry)); // 通过 DSM 读取 root_ptr_ptr 指向的数据，存入 entry_buffer。
+  auto root_ptr = *(InternalEntry *)entry_buffer; // root_ptr 存储当前树的根节点指针
+  // 只有 Node 0 负责初始化根节点, 如果 root_ptr 不是空（说明树已存在），需要 CAS 置空。
   if (dsm->getMyNodeID() == 0 && root_ptr != InternalEntry::Null()) {
+    // 获取 DSM 用于 CAS 操作的缓冲区。
     auto cas_buffer = (dsm->get_rbuf(0)).get_cas_buffer();
 retry:
+    // 执行原子 CAS（比较并交换）: 
+    // 目标地址: root_ptr_ptr（存储根节点的地址）。
+    // 期望值: root_ptr（当前根指针）。
+    // 更新值: InternalEntry::Null()（置为空）。
+    // 结果缓冲区: cas_buffer（存储 CAS 失败时的新值)
     bool res = dsm->cas_sync(root_ptr_ptr, (uint64_t)root_ptr, (uint64_t)InternalEntry::Null(), cas_buffer);
+    // 如果 CAS 失败，并且 root_ptr 仍然不是空，说明有其他线程或节点更新了 root_ptr。更新 root_ptr 并 重试 CAS，确保根节点最终被置空
     if (!res && (root_ptr = *(InternalEntry *)cas_buffer) != InternalEntry::Null()) {
       goto retry;
     }
@@ -67,6 +79,7 @@ retry:
 }
 
 
+// 获取存储根节点指针的全局地址（GlobalAddress）。
 GlobalAddress Tree::get_root_ptr_ptr() {
   GlobalAddress addr;
   addr.nodeID = 0;
@@ -75,25 +88,36 @@ GlobalAddress Tree::get_root_ptr_ptr() {
 }
 
 
-InternalEntry Tree::get_root_ptr(CoroContext *cxt, int coro_id) {
+// 获取当前树的根节点指针
+InternalEntry Tree::get_root_ptr(CoroContext *cxt, int coro_id) { // cxt: 协程上下文  coro_id：协程id
+  // dsm->get_rbuf(coro_id) 获取 DSM 维护的 第 coro_id 个 读缓冲区（rbuf）。
+  // .get_entry_buffer(): 获取读缓冲区中的 entry_buffer，用于存储从 DSM 读取的数据
   auto entry_buffer = (dsm->get_rbuf(coro_id)).get_entry_buffer();
+  // dsm->read_sync: 同步读取 root_ptr_ptr 指向的 InternalEntry 数据到 entry_buffer
   dsm->read_sync((char *)entry_buffer, root_ptr_ptr, sizeof(InternalEntry), cxt);
   return *(InternalEntry *)entry_buffer;
 }
 
 
+// 插入逻辑。
+// const Key &k, Value v：要插入的键值对 
+// CoroContext *cxt, int coro_id：协程上下文和协程 ID，用于异步 RDMA 操作
+// bool is_update：是否是更新操作
+// bool is_load：是否是数据加载（如果 is_load=true，相同 Key 不重复插入）
 void Tree::insert(const Key &k, Value v, CoroContext *cxt, int coro_id, bool is_update, bool is_load) {
   assert(dsm->is_register());
   // handover
-  bool write_handover = false;
+  bool write_handover = false; // 是否将插入操作交给其他协程处理（减少锁争用）
+  // lock_res：局部写锁的获取状态
   std::pair<bool, bool> lock_res = std::make_pair(false, false);
 
   // traversal
-  GlobalAddress p_ptr;
-  InternalEntry p;
+  GlobalAddress p_ptr; // 当前处理的 内部节点地址
+  InternalEntry p; // 当前内部节点的 入口条目（InternalEntry）
+  // 内部节点的 实际存储地址
   GlobalAddress node_ptr;  // node address(excluding header)
   int depth;
-  int retry_flag = FIRST_TRY;
+  int retry_flag = FIRST_TRY; // 记录重试原因
 
   // cache
   bool from_cache = false;
@@ -156,6 +180,7 @@ void Tree::insert(const Key &k, Value v, CoroContext *cxt, int coro_id, bool is_
 next:
   retry_cnt[dsm->getMyThreadID()][retry_flag] ++;
 
+  // 如果当前节点为空 (p == Null())：直接创建 叶子节点 并插入。通过 CAS（比较并交换） 方式 原子更新。CAS 失败则重试。
   // 1. If we are at a NULL node, inject a leaf
   if (p == InternalEntry::Null()) {
     assert(from_cache == false);
@@ -170,6 +195,7 @@ next:
     goto insert_finish;
   }
 
+  // 如果 p 是叶子节点：读取 Leaf 结构。通过 DSM 读取数据到 leaf_buffer。如果 Leaf 无效（可能是 删除或缓存失效），需要重新读取
   // 2. If we are at a leaf, we need to update it / replace it with a node
   if (p.is_leaf) {
     // 2.1 read the leaf
@@ -196,6 +222,9 @@ next:
     auto _k = leaf->get_key();
 
     // 2.2 Check if we are updating an existing key
+    // 如果是数据加载（is_load = true），直接返回。
+    // 如果 v 没变，直接返回。
+    // 否则：启用 IN_PLACE_UPDATE（原地更新）。否则执行 OUT_OF_PLACE_UPDATE（异地更新）
     if (_k == k) {
       if (is_load) {
         goto insert_finish;
@@ -237,10 +266,11 @@ next:
       goto insert_finish;
     }
 
+    // 走到这里，说明 k != _k 如果 k 和 _k 不匹配，需要进行叶子分裂
     // 2.3 New key, we must merge the two leaves into a node (leaf split)
-    int partial_len = longest_common_prefix(_k, k, depth);
+    int partial_len = longest_common_prefix(_k, k, depth); // 计算最长公共前缀（LCP）
     uint8_t diff_partial = get_partial(_k, depth + partial_len);
-    auto cas_buffer = (dsm->get_rbuf(coro_id)).get_cas_buffer();
+    auto cas_buffer = (dsm->get_rbuf(coro_id)).get_cas_buffer();     
     bool res = out_of_place_write_node(k, v, depth, leaf_addr, partial_len, diff_partial, p_ptr, p, node_ptr, cas_buffer, cxt, coro_id);
     // cas fail, retry
     if (!res) {

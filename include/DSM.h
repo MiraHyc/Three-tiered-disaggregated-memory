@@ -326,27 +326,38 @@ inline GlobalAddress DSM::alloc(size_t size, bool align) {
   // alloc from the target node
   bool need_chunk = true;
   GlobalAddress addr = local_allocator.malloc(size, need_chunk, align);
-  if (need_chunk) {
-            cxl_address = cxl_chunckAlloc->alloc_chunck(); 
-            // 检查 alloc_chunck 返回的有效性以及标志位
-            if (cxl_address.nodeID == 2) {
-                //Debug::notifyError("Local chunk allocation failed: shared memory space run out.");
-                // 立即尝试远程分配
-                RawMessage m;
-                m.type = RpcType::MALLOC;
-                this->rpc_call_dir(m, cur_target_node, cur_target_dir_id);
-                local_allocator.set_chunck(rpc_wait()->addr);
-                addr = local_allocator.malloc(size, need_chunk, align);
-            } else {
-                local_allocator.set_chunck(cxl_address);
-                addr = local_allocator.malloc(size, need_chunk, align);
-                return addr;
-            }
-            return addr;
-            }
-            return addr;
-            }
-
+  // if (need_chunk) {
+  //           cxl_address = cxl_chunckAlloc->alloc_chunck(); 
+  //           // 检查 alloc_chunck 返回的有效性以及标志位
+  //           if (cxl_address.nodeID == 2) {
+  //               //Debug::notifyError("Local chunk allocation failed: shared memory space run out.");
+  //               // 立即尝试远程分配
+  //               RawMessage m;
+  //               m.type = RpcType::MALLOC;
+  //               this->rpc_call_dir(m, cur_target_node, cur_target_dir_id);
+  //               local_allocator.set_chunck(rpc_wait()->addr);
+  //               addr = local_allocator.malloc(size, need_chunk, align);
+  //           } else {
+  //               local_allocator.set_chunck(cxl_address);
+  //               addr = local_allocator.malloc(size, need_chunk, align);
+  //               return addr;
+  //           }
+  //           return addr;
+  //           }
+  //           return addr;
+  //           }
+   if (need_chunk)  {
+     RawMessage m;
+    m.type = RpcType::MALLOC;
+    this->rpc_call_dir(m, cur_target_node, cur_target_dir_id);
+    local_allocator.set_chunck(rpc_wait()->addr);
+    //std::cout << "myNodeID: " << myNodeID<< std::endl;
+    // retry
+    addr = local_allocator.malloc(size, need_chunk, align);
+    //std::cout << "remote allocation successful. Address: " << addr << std::endl;
+  }
+  return addr;
+}
 
 inline void DSM::alloc_nodes(int node_num, GlobalAddress *addrs, bool align) {
   for (int i = 0; i < node_num; ++ i) {

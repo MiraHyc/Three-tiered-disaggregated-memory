@@ -1,6 +1,6 @@
 {
     "methods": ["SMART", "Sherman"],
-    "workload_names": ["YCSB C", "c"],
+    "workload_names": ["YCSB E", "e"],
     "target_epoch": 9,
     "client_num": [2, 8],
     "MN_num": 1,
